@@ -1,12 +1,12 @@
 import { auth } from "@/src/lib/auth";
 import { headers } from "next/headers";
 import { connectToDatabase } from "@/src/lib/db";
+import { ObjectId } from "mongodb";
 
 export async function POST(request: Request) {
     try {
-        // 1. Verify the user is logged in securely on the server
         const session = await auth.api.getSession({
-            headers: await headers() // Await headers for Next.js 15+ compatibility
+            headers: await headers()
         });
 
         if (!session) {
@@ -15,20 +15,17 @@ export async function POST(request: Request) {
 
         const { score } = await request.json();
 
-        // 2. Connect to the MongoDB cluster
         const db = await connectToDatabase();
-
-        // Better-Auth creates a collection named "user" by default
         const collection = db.connection.collection('user');
 
-        // 3. Fetch the user's current record
-        const currentUser = await collection.findOne({ _id: session.user.id });
+        const userObjectId = new ObjectId(session.user.id);
+
+        const currentUser = await collection.findOne({ _id: userObjectId });
         const currentRecord = currentUser?.maxAltitude || 0;
 
-        // 4. Update the DB ONLY if they beat their high score
         if (score > currentRecord) {
             await collection.updateOne(
-                { _id: session.user.id },
+                { _id: userObjectId },
                 { $set: { maxAltitude: score } }
             );
             return Response.json({ success: true, updated: true, newRecord: score });
@@ -44,7 +41,6 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
     try {
-        // 1. Verify the user is logged in
         const session = await auth.api.getSession({
             headers: await headers()
         });
@@ -53,12 +49,12 @@ export async function GET(request: Request) {
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // 2. Connect to the database
         const db = await connectToDatabase();
         const collection = db.connection.collection('user');
 
-        // 3. Find the user and extract their max altitude (default to 0 if they haven't played)
-        const currentUser = await collection.findOne({ _id: session.user.id });
+        const userObjectId = new ObjectId(session.user.id);
+
+        const currentUser = await collection.findOne({ _id: userObjectId });
         const maxAltitude = currentUser?.maxAltitude || 0;
 
         return Response.json({ success: true, maxAltitude });
