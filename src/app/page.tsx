@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, memo } from "react";
 import GameCanvas from "@/src/components/GameCanvas";
 import { authClient } from "@/src/lib/auth-client";
 
-type AppState = 'menu' | 'playing' | 'leaderboard';
+// Explicit State Machine Definitions
+type AppState = 'menu' | 'intro' | 'playing' | 'leaderboard';
 
-// Define the shape of our player data
 interface LeaderboardPlayer {
   _id: string;
   name: string;
@@ -14,15 +14,83 @@ interface LeaderboardPlayer {
   maxAltitude: number;
 }
 
+const LeaderboardEntry = memo(({ player, index, isCurrentUser }: { player: LeaderboardPlayer, index: number, isCurrentUser: boolean }) => {
+  const rankColor = index === 0 ? 'text-yellow-400' : index === 1 ? 'text-slate-300' : index === 2 ? 'text-amber-600' : 'text-slate-500';
+
+  return (
+    <div className={`flex items-center justify-between p-4 rounded-lg border border-transparent transition-all ${isCurrentUser ? 'bg-slate-700/50 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'bg-slate-800/40 hover:bg-slate-800/70'
+      }`}>
+      <div className="flex items-center gap-4">
+        <span className={`font-black text-xl w-6 ${rankColor}`}>#{index + 1}</span>
+        {player.image ? (
+          <img src={player.image} alt="" className="w-10 h-10 rounded-full border border-slate-700 object-cover" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold text-slate-400">
+            {player.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <span className="font-bold text-lg truncate max-w-37.5">{player.name}</span>
+      </div>
+      <span className="font-mono text-transparent bg-clip-text bg-linear-to-r from-cyan-400 to-violet-400 font-bold text-xl">
+        {player.maxAltitude}m
+      </span>
+    </div>
+  );
+});
+LeaderboardEntry.displayName = 'LeaderboardEntry';
+
+
+// --- SUB-COMPONENT: Hardware Accelerated Intro Video Loop ---
+function IntroVideo({ onComplete }: { onComplete: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.play().catch(() => console.warn("Autoplay intercepted. Waiting for bypass click."));
+
+    // Polyfill handling multi-input skip mechanics safely
+    const handleSkip = (e: KeyboardEvent) => {
+      if (e.key === " " || e.key === "Escape") {
+        e.preventDefault();
+        onComplete();
+      }
+    };
+
+    window.addEventListener("keydown", handleSkip);
+    return () => window.removeEventListener("keydown", handleSkip);
+  }, [onComplete]);
+
+  return (
+    <div className="fixed inset-0 w-screen h-screen bg-black z-50 overflow-hidden" onClick={onComplete}>
+      <video
+        ref={videoRef}
+        src="/videos/intro.mp4"
+        className="w-full h-full object-cover pointer-events-none"
+        playsInline
+        preload="auto"
+        onEnded={onComplete}
+      />
+      <button
+        onClick={(e) => { e.stopPropagation(); onComplete(); }}
+        className="absolute bottom-8 right-8 bg-black/50 hover:bg-violet-600/40 text-slate-300 hover:text-cyan-400 font-mono text-xs tracking-widest uppercase px-5 py-3 rounded-md border border-slate-800 transition-all backdrop-blur-md"
+      >
+        Skip Sequence [SPACE]
+      </button>
+    </div>
+  );
+}
+
+
+// --- MAIN ROUTER COMPONENT ---
 export default function Home() {
   const { data: session, isPending } = authClient.useSession();
   const [currentView, setCurrentView] = useState<AppState>('menu');
-
-  // New state for the leaderboard
   const [leaders, setLeaders] = useState<LeaderboardPlayer[]>([]);
   const [isLoadingLeaders, setIsLoadingLeaders] = useState(false);
 
-  // Automatically fetch the leaderboard whenever the view changes to 'leaderboard'
+  // Auto-fetch data stream on state shifting hooks
   useEffect(() => {
     if (currentView === 'leaderboard') {
       const fetchLeaderboard = async () => {
@@ -30,11 +98,9 @@ export default function Home() {
         try {
           const res = await fetch('/api/leaderboard');
           const data = await res.json();
-          if (data.success) {
-            setLeaders(data.leaderboard);
-          }
+          if (data.success) setLeaders(data.leaderboard);
         } catch (error) {
-          console.error("Failed to load leaderboard", error);
+          console.error("Failed to load telemetry data", error);
         } finally {
           setIsLoadingLeaders(false);
         }
@@ -51,144 +117,145 @@ export default function Home() {
     await authClient.signOut({ fetchOptions: { onSuccess: () => window.location.reload() } });
   };
 
+  // --- STATE 1: REHYDRATION LOADING ---
   if (isPending) {
     return (
-      <main className="w-screen h-screen bg-black flex items-center justify-center">
-        <span className="text-white font-mono text-xl animate-pulse">Loading Summit Jack...</span>
+      <main className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center gap-2">
+        <div className="w-6 h-6 border-2 border-t-violet-500 border-slate-800 rounded-full animate-spin" />
+        <span className="text-slate-500 font-mono text-xs tracking-widest uppercase animate-pulse">Syncing Reality...</span>
       </main>
     );
   }
 
+  // --- STATE 2: UNAUTHENTICATED LAUNCHER GATE ---
   if (!session) {
     return (
-      <main className="w-screen h-screen bg-slate-900 flex flex-col items-center justify-center">
-        <h1 className="text-6xl font-black text-white mb-2 tracking-tighter">SUMMIT JACK</h1>
-        <p className="text-slate-400 mb-12">Hook. Swing. Climb.</p>
+      <main className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(139,92,246,0.08)_0%,transparent_60%)]" />
+        <h1 className="text-6xl font-black text-white mb-2 tracking-tighter">TETHERVERSE</h1>
+        <p className="text-slate-500 mb-12 font-mono text-xs tracking-widest uppercase">Fractured Multiverse Grappling Loop</p>
         <button
           onClick={handleLogin}
-          className="bg-white text-black px-8 py-4 rounded-lg font-bold text-xl hover:bg-gray-200 transition-transform active:scale-95"
+          className="relative bg-white text-black px-8 py-4 rounded-xl font-mono font-black text-sm tracking-wide uppercase hover:bg-gray-200 transition-all active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
         >
-          Sign in with Google to Play
+          Authorize Node with Google
         </button>
       </main>
     );
   }
 
+  // --- STATE 3: AUTHENTICATED REALITY MATRIX ---
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-black">
+    <main className="relative w-screen h-screen overflow-hidden bg-radial-dark text-white select-none">
 
-      <button
-        onClick={handleLogout}
-        className="absolute top-4 right-4 z-50 bg-red-500/80 hover:bg-red-500 text-white px-4 py-2 rounded font-bold backdrop-blur-sm"
-      >
-        Log Out
-      </button>
+      {/* Global Interface Override Control */}
+      {currentView !== 'playing' && currentView !== 'intro' && (
+        <button
+          onClick={handleLogout}
+          className="absolute top-6 right-6 z-50 bg-slate-900/40 hover:bg-red-600/20 text-slate-400 hover:text-red-400 px-4 py-2 rounded-lg border border-slate-800 hover:border-red-500/20 font-mono text-xs tracking-wider transition-all backdrop-blur-sm"
+        >
+          DISCONNECT NODE
+        </button>
+      )}
 
-      {/* VIEW A: MAIN MENU */}
+      {/* VIEW A: MULTIVERSE PREMIUM MAIN MENU LAUNCHER */}
       {currentView === 'menu' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-900">
-          <h1 className="text-6xl font-black text-white mb-2 tracking-tighter">SUMMIT JACK</h1>
-          <p className="text-green-400 mb-12 text-lg font-mono">
-            Welcome back, {session.user.name}
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/40">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(6,182,212,0.06)_0%,transparent_50%)] pointer-events-none" />
+
+          {/* Logo Center Ring Layout */}
+          <div className="relative w-44 h-44 border border-cyan-500/20 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(6,182,212,0.05)] group">
+            <div className="absolute inset-2 border border-dashed border-violet-500/20 rounded-full animate-[spin_40s_linear_infinite]" />
+            <span className="text-5xl font-black text-slate-300 tracking-tighter">Ω</span>
+          </div>
+
+          <h1 className="text-6xl md:text-7xl font-black text-white mb-1 tracking-tighter uppercase">
+            Tether<span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 via-violet-400 to-fuchsia-500">verse</span>
+          </h1>
+          <p className="text-green-400/80 mb-12 text-xs font-mono tracking-[0.25em] uppercase">
+            Welcome back, client::{session.user.name.split(' ')[0]}
           </p>
 
-          <div className="flex gap-6">
+          <div className="flex gap-6 z-10">
             <button
-              onClick={() => setCurrentView('playing')}
-              className="bg-green-500 hover:bg-green-400 text-black px-10 py-4 rounded-lg font-black text-2xl transition-transform active:scale-95"
+              onClick={() => setCurrentView('intro')}
+              className="bg-linear-to-r from-cyan-500 to-violet-600 text-white px-10 py-4 rounded-xl font-mono font-black text-sm tracking-widest hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all active:scale-95 border border-cyan-400/20"
             >
-              PLAY
+              INITIALIZE ASCENT
             </button>
             <button
               onClick={() => setCurrentView('leaderboard')}
-              className="bg-slate-700 hover:bg-slate-600 text-white px-10 py-4 rounded-lg font-bold text-2xl transition-transform active:scale-95"
+              className="bg-slate-900/80 hover:bg-slate-800 text-slate-300 px-8 py-4 rounded-xl font-mono font-bold text-sm tracking-widest transition-all active:scale-95 border border-slate-800 hover:border-slate-700"
             >
-              Leaderboard
+              TELEMETRY LIST
             </button>
           </div>
         </div>
       )}
 
-      {/* VIEW B: THE LEADERBOARD */}
+      {/* VIEW B: HIGH ARCHITECTURE LEADERBOARD PANEL */}
       {currentView === 'leaderboard' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-900 text-white p-4">
-          <h2 className="text-5xl font-black mb-8 text-transparent bg-clip-text bg-linear-to-r from-green-400 to-blue-500">
-            GLOBAL RANKINGS
-          </h2>
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/80 backdrop-blur-md p-4">
+          <div className="relative w-full max-w-lg bg-slate-900/40 border border-violet-500/20 rounded-2xl flex flex-col shadow-2xl overflow-hidden h-[75vh]">
 
-          <div className="bg-slate-800 p-6 rounded-xl w-full max-w-lg mb-8 shadow-2xl border border-slate-700 h-100 overflow-y-auto">
-            {isLoadingLeaders ? (
-              <div className="flex justify-center items-center h-full">
-                <span className="animate-pulse text-slate-400 font-mono">Connecting to satellite...</span>
+            <div className="p-6 border-b border-slate-800/80 bg-slate-950/40 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-black uppercase tracking-tight">Global Rankings</h2>
+                <p className="text-xs font-mono text-slate-500 tracking-wider">Top Dimensional Quantum Distances</p>
               </div>
-            ) : leaders.length === 0 ? (
-              <div className="flex justify-center items-center h-full">
-                <span className="text-slate-400 font-mono">No climbers yet. Be the first!</span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {leaders.map((player, index) => (
-                  <div
-                    key={player._id}
-                    className={`flex items-center justify-between p-4 rounded-lg ${
-                      // Highlight the current user in the list
-                      player._id === session.user.id
-                        ? 'bg-slate-600 border border-green-500/50'
-                        : 'bg-slate-700/50'
-                      }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* Rank Number */}
-                      <span className={`font-black text-xl w-6 ${index === 0 ? 'text-yellow-400' :
-                        index === 1 ? 'text-slate-300' :
-                          index === 2 ? 'text-amber-600' : 'text-slate-500'
-                        }`}>
-                        #{index + 1}
-                      </span>
+              <button
+                onClick={() => setCurrentView('menu')}
+                className="font-mono text-xs bg-slate-950 border border-slate-800 hover:border-cyan-500/30 px-3 py-1.5 rounded-lg text-slate-400 hover:text-cyan-400 transition-all"
+              >
+                [ESC] RETURN
+              </button>
+            </div>
 
-                      {/* Avatar (if they have one via Google) */}
-                      {player.image ? (
-                        <img src={player.image} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-slate-600" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-slate-600" />
-                      )}
-
-                      {/* Name */}
-                      <span className="font-bold text-lg truncate max-w-37.5">
-                        {player.name}
-                      </span>
-                    </div>
-
-                    {/* Score */}
-                    <span className="font-mono text-green-400 font-bold text-xl">
-                      {player.maxAltitude}m
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-950/10">
+              {isLoadingLeaders ? (
+                <div className="flex flex-col justify-center items-center h-full gap-2 font-mono text-xs text-slate-500 uppercase tracking-widest">
+                  <div className="w-5 h-5 border border-t-cyan-400 border-transparent rounded-full animate-spin" />
+                  Processing Stream...
+                </div>
+              ) : leaders.length === 0 ? (
+                <div className="flex justify-center items-center h-full text-slate-500 font-mono text-sm">
+                  No tracking vectors found in this sector.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {leaders.map((player, index) => (
+                    <LeaderboardEntry
+                      key={player._id}
+                      player={player}
+                      index={index}
+                      isCurrentUser={player._id === session.user.id}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-
-          <button
-            onClick={() => setCurrentView('menu')}
-            className="bg-slate-700 hover:bg-slate-600 px-8 py-4 rounded-lg font-bold transition-transform active:scale-95 text-lg"
-          >
-            Return to Basecamp
-          </button>
         </div>
       )}
 
-      {/* VIEW C: THE GAME */}
+      {/* VIEW C: RUNTIME FILM STRIP SCENE INTERCEPTION */}
+      {currentView === 'intro' && (
+        <IntroVideo onComplete={() => setCurrentView('playing')} />
+      )}
+
+      {/* VIEW D: DECOUPLED GAME ENVIRONMENT LOOP */}
       {currentView === 'playing' && (
-        <>
+        <div className="w-full h-full relative z-30">
           <button
             onClick={() => setCurrentView('menu')}
-            className="absolute top-4 left-4 z-50 bg-slate-800/80 hover:bg-slate-700 text-white px-4 py-2 rounded font-bold backdrop-blur-sm"
+            className="absolute top-6 left-6 z-50 bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-red-400 px-4 py-2 rounded-lg border border-slate-800 hover:border-red-500/30 font-mono text-xs font-bold backdrop-blur-sm transition-all shadow-lg"
           >
-            Quit to Menu
+            ← ABORT ASCENT
           </button>
+
+          {/* Engine mounting node scales securely right here */}
           <GameCanvas />
-        </>
+        </div>
       )}
 
     </main>

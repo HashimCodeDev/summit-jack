@@ -1,42 +1,65 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from "react";
+import SkipButton from "./SkipButton";
 
-interface Props {
+interface IntroVideoProps {
     onComplete: () => void;
     onSkip: () => void;
 }
 
-export default function IntroVideo({
-    onComplete,
-    onSkip,
-}: Props) {
+export default function IntroVideo({ onComplete, onSkip }: IntroVideoProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
 
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        // Force maximum performance bindings
+        video.playbackRate = 1.0;
+        video.play().catch((err) => {
+            console.warn("Autoplay blocked by browser policy, executing fallback click-to-play:", err);
+        });
+
+        // Event handler for keyboard skips
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === " " || e.key === "Escape") {
+                e.preventDefault();
+                onSkip();
+            }
+        };
+
+        // Event handler for viewport interactive bypass
+        const handleViewportClick = (e: MouseEvent) => {
+            // Do not trigger skip if clicking the explicit interactive button
+            if ((e.target as HTMLElement).closest('[data-skip-btn]')) return;
+            onSkip();
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("click", handleViewportClick);
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("click", handleViewportClick);
+        };
+    }, [onSkip]);
+
     return (
-        <div
-            className="fixed inset-0 z-50 bg-black"
-            onClick={onSkip}
-        >
+        <div className="fixed inset-0 w-screen h-screen bg-black z-50 overflow-hidden select-none">
             <video
                 ref={videoRef}
+                src="/videos/intro.mp4"
+                className="w-full h-full object-cover pointer-events-none"
                 autoPlay
                 playsInline
-                className="w-full h-full object-cover"
+                muted={false}
                 onEnded={onComplete}
-            >
-                <source src="/videos/multiverse-intro.mp4" />
-            </video>
-
-            <button
-                className="absolute top-6 right-6 px-4 py-2 bg-black/60 backdrop-blur text-white rounded"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onSkip();
-                }}
-            >
-                Skip
-            </button>
+                preload="auto"
+            />
+            <div className="absolute bottom-8 right-8 z-55" data-skip-btn>
+                <SkipButton onClick={onSkip} />
+            </div>
         </div>
     );
 }
