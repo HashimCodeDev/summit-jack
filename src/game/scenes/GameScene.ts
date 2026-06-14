@@ -155,8 +155,18 @@ export class GameScene extends Scene {
                 this.runLowestY = this.player.y;
             }
 
-            // If you fall 800px below your highest achieved point, you die
-            if (this.player.y > this.runLowestY + 800) {
+            // Find the absolute lowest platform still alive in the world (always index 0)
+            if (this.platforms.length > 0) {
+                const lowestPlatform = this.platforms[0] as any;
+                const voidY = lowestPlatform.body ? lowestPlatform.body.position.y : lowestPlatform.y;
+
+                // You ONLY die if you fall 300px past the lowest existing platform
+                if (this.player.y > voidY + 300) {
+                    this.handlePlayerFailure();
+                    return;
+                }
+            } else if (this.player.y > this.groundReferenceY + 400) {
+                // Fallback for the very beginning of the game
                 this.handlePlayerFailure();
                 return;
             }
