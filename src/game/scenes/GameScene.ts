@@ -53,7 +53,15 @@ export class GameScene extends Scene {
         );
 
         // 3. IN-WORLD TUTORIAL TEXT: Guides the player's eyes and actions perfectly
-        this.add.text(350, this.groundReferenceY - 220, "1. Tap & HOLD here to Hook ↓", {
+        this.add.text(250, this.groundReferenceY - 230, "1. Tap & HOLD here to Hook", {
+            fontSize: "24px",
+            fontFamily: "monospace",
+            color: "#00ffcc",
+            stroke: "#000000",
+            strokeThickness: 4
+        });
+
+        this.add.text(440, this.groundReferenceY - 210, "↓", {
             fontSize: "24px",
             fontFamily: "monospace",
             color: "#00ffcc",
