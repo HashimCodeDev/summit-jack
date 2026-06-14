@@ -12,10 +12,25 @@ export class GameScene extends Scene {
     private maxHeightText!: Phaser.GameObjects.Text;
 
     private groundReferenceY: number = 1200;
-    private maxAltitudeMeters: number = 0;
+    private static maxAltitudeMeters: number = 0;
 
     constructor() {
         super("GameScene");
+    }
+
+    init() {
+        try {
+            const saved = localStorage.getItem('maxAltitude');
+            if (saved) {
+                const parsed = parseInt(saved, 10);
+                // Only overwrite if the saved score is a valid number AND higher
+                if (!isNaN(parsed) && parsed > GameScene.maxAltitudeMeters) {
+                    GameScene.maxAltitudeMeters = parsed;
+                }
+            }
+        } catch (e) {
+            // Silently ignore if the browser is blocking localStorage
+        }
     }
     create() {
         this.matter.world.setBounds(0, -100000, 20000, 100000 + this.groundReferenceY);
@@ -78,11 +93,11 @@ export class GameScene extends Scene {
         }).setScrollFactor(0);
 
         // Max Height Tracker
-        this.maxHeightText = this.add.text(20, 50, "Max Height: 0m", {
+        this.maxHeightText = this.add.text(20, 50, `Max Height: ${GameScene.maxAltitudeMeters}m`, {
             fontSize: "18px",
             fontFamily: "monospace",
             color: "#FF0000"
-        }).setScrollFactor(0);
+        }).setScrollFactor(0);;
     }
 
     update(time: number, delta: number) {
@@ -92,21 +107,41 @@ export class GameScene extends Scene {
             this.pivotEngine.updateEngineRoutines();
         }
 
-        //Update the Altimeter
-        if (this.player && this.heightText) {
-            // Calculate distance from the ground (Y decreases as you go up)
-            const pixelHeight = this.groundReferenceY - this.player.y - 20;
+        if (this.player) {
+            // --- FAIL CONDITIONAL CHECK ---
+            // If the player falls past the initial base ground zone, execute fail loop
+            if (this.player.y > this.groundReferenceY + 400) {
+                this.handlePlayerFailure();
+                return;
+            }
 
-            // Convert pixels to meters (let's say 10 pixels = 1 meter)
-            // Math.max(0, ...) ensures it doesn't show negative numbers if you bounce hard on the floor
-            const altitudeMeters = Math.max(0, Math.floor(pixelHeight / 10));
+            // Altimeter calculation routines
+            if (this.heightText) {
+                const pixelHeight = (this.groundReferenceY - this.player.y) - 20;
+                const altitudeMeters = Math.max(0, Math.floor(pixelHeight / 10));
 
-            this.heightText.setText(`Altitude: ${altitudeMeters}m`);
+                this.heightText.setText(`Altitude: ${altitudeMeters}m`);
 
-            if (altitudeMeters > this.maxAltitudeMeters) {
-                this.maxAltitudeMeters = altitudeMeters;
-                this.maxHeightText.setText(`Max Height: ${this.maxAltitudeMeters}m`);
+                if (altitudeMeters > GameScene.maxAltitudeMeters) {
+                    GameScene.maxAltitudeMeters = altitudeMeters;
+
+                    // Bulletproof persistent save
+                    localStorage.setItem('maxAltitude', GameScene.maxAltitudeMeters.toString());
+
+                    this.maxHeightText.setText(`Max Height: ${GameScene.maxAltitudeMeters}m`);
+                }
             }
         }
+    }
+
+    private handlePlayerFailure() {
+        // Destroy the previous engine runtime references to safely unbind old event listeners 
+        // and eliminate pointer registration leaks
+        if (this.pivotEngine) {
+            this.pivotEngine.destroy();
+        }
+
+        // Trigger a native scene reload framework sequence
+        this.scene.restart();
     }
 }
