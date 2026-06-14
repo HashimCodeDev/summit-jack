@@ -29,9 +29,9 @@ const LeaderboardEntry = memo(({ player, index, isCurrentUser }: { player: Leade
             {player.name.charAt(0).toUpperCase()}
           </div>
         )}
-        <span className="font-bold text-lg truncate max-w-[150px]">{player.name}</span>
+        <span className="font-bold text-lg truncate max-w-37.5">{player.name}</span>
       </div>
-      <span className="font-mono text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-400 font-bold text-xl">
+      <span className="font-mono text-transparent bg-clip-text bg-linear-to-r from-cyan-400 to-violet-400 font-bold text-xl">
         {player.maxAltitude}m
       </span>
     </div>
@@ -40,28 +40,41 @@ const LeaderboardEntry = memo(({ player, index, isCurrentUser }: { player: Leade
 LeaderboardEntry.displayName = 'LeaderboardEntry';
 
 
-// --- Intro Video Component with Browser Audio Bypass ---
+// --- Intro Video Component with Cinematic Fade Transition Out ---
 function IntroVideo({ onComplete }: { onComplete: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [isFadingOut, setIsFadingOut] = useState(false); // Controls the exit animation opacity
 
-  // Trigger video playback immediately upon interaction
   const handleStartIntro = () => {
     setHasInteracted(true);
-
-    // Tiny timeout ensures the DOM has updated and audio context is unlocked by the click
     setTimeout(() => {
       const video = videoRef.current;
       if (video) {
-        video.muted = false; // 🔊 UNMUTED! Allowed because it happens inside a click handler
+        video.muted = false;
         video.play().catch((err) => {
-          console.error("Audio playback execution blocked:", err);
-          // Fallback if browser still acts up
+          console.error("Audio block bypass failed:", err);
           video.muted = true;
           video.play();
         });
       }
     }, 50);
+  };
+
+  // Triggers the smooth fade out sequence before unmounting the component entirely
+  const triggerFadeOut = () => {
+    if (isFadingOut) return; // Prevent double trigger executions
+    setIsFadingOut(true);
+
+    // Pause on the final frame instead of letting the native engine render a black screen
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+
+    // Match this timeout exactly to the CSS transition timing duration (1000ms = 1s)
+    setTimeout(() => {
+      onComplete();
+    }, 1000);
   };
 
   useEffect(() => {
@@ -70,15 +83,14 @@ function IntroVideo({ onComplete }: { onComplete: () => void }) {
     const handleSkip = (e: KeyboardEvent) => {
       if (e.key === " " || e.key === "Escape") {
         e.preventDefault();
-        onComplete();
+        triggerFadeOut();
       }
     };
 
     window.addEventListener("keydown", handleSkip);
     return () => window.removeEventListener("keydown", handleSkip);
-  }, [hasInteracted, onComplete]);
+  }, [hasInteracted, isFadingOut]);
 
-  // Gate 1: Prompt interaction to satisfy browser security policies
   if (!hasInteracted) {
     return (
       <div
@@ -93,20 +105,26 @@ function IntroVideo({ onComplete }: { onComplete: () => void }) {
     );
   }
 
-  // Gate 2: True unmuted cinematic streaming
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-black z-50 overflow-hidden" onClick={onComplete}>
+    <div
+      onClick={triggerFadeOut}
+      className={`fixed inset-0 w-screen h-screen bg-black z-50 overflow-hidden transition-opacity duration-1000 ease-out select-none ${isFadingOut ? "opacity-0 pointer-events-none" : "opacity-100"
+        }`}
+    >
       <video
         ref={videoRef}
         src="/videos/intro.mp4"
         className="w-full h-full object-cover pointer-events-none"
         playsInline
         preload="auto"
-        onEnded={onComplete}
+        onEnded={triggerFadeOut}
       />
+
+      {/* Hide the skip button smoothly during the fadeout */}
       <button
-        onClick={(e) => { e.stopPropagation(); onComplete(); }}
-        className="absolute bottom-8 right-8 bg-black/50 hover:bg-violet-600/40 text-slate-300 hover:text-cyan-400 font-mono text-xs tracking-widest uppercase px-5 py-3 rounded-md border border-slate-800 transition-all backdrop-blur-md"
+        onClick={(e) => { e.stopPropagation(); triggerFadeOut(); }}
+        className={`absolute bottom-8 right-8 bg-black/50 hover:bg-violet-600/40 text-slate-300 hover:text-cyan-400 font-mono text-xs tracking-widest uppercase px-5 py-3 rounded-md border border-slate-800 transition-all backdrop-blur-md ${isFadingOut ? "opacity-0 scale-95 pointer-events-none" : "opacity-100"
+          }`}
       >
         Skip Intro [SPACE]
       </button>
@@ -121,6 +139,15 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<AppState>('intro');
   const [leaders, setLeaders] = useState<LeaderboardPlayer[]>([]);
   const [isLoadingLeaders, setIsLoadingLeaders] = useState(false);
+
+  // Pre-load the menu components in parallel background states while intro plays
+  const [isMenuMounted, setIsMenuMounted] = useState(false);
+
+  useEffect(() => {
+    if (currentView === 'menu') {
+      setIsMenuMounted(true);
+    }
+  }, [currentView]);
 
   useEffect(() => {
     if (currentView === 'leaderboard') {
@@ -185,14 +212,15 @@ export default function Home() {
         </button>
       )}
 
-      {/* VIEW A: LOGGED IN INITIAL CONDITION -> SYSTEM AUDIO READY GATE AND INTRO CONTAINER */}
+      {/* VIEW A: COEXISTENT INTRUSIVE CINEMATIC LAYER */}
       {currentView === 'intro' && (
         <IntroVideo onComplete={() => setCurrentView('menu')} />
       )}
 
-      {/* VIEW B: MAIN LAUNCHER INTERFACE */}
-      {currentView === 'menu' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/40">
+      {/* VIEW B: MAIN LAUNCHER INTERFACE (Renders underneath the fadeout layer seamlessly) */}
+      {(currentView === 'menu' || isMenuMounted) && (
+        <div className={`absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/40 transition-all duration-1000 transform ${currentView === 'menu' ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
+          }`}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(6,182,212,0.06)_0%,transparent_50%)] pointer-events-none" />
 
           <div className="relative w-44 h-44 border border-cyan-500/20 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(6,182,212,0.05)] group">
@@ -201,7 +229,7 @@ export default function Home() {
           </div>
 
           <h1 className="text-6xl md:text-7xl font-black text-white mb-1 tracking-tighter uppercase">
-            Tether<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-violet-400 to-fuchsia-500">verse</span>
+            Tether<span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 via-violet-400 to-fuchsia-500">verse</span>
           </h1>
           <p className="text-green-400/80 mb-12 text-xs font-mono tracking-[0.25em] uppercase">
             Welcome back, client::{session.user.name.split(' ')[0]}
@@ -210,7 +238,7 @@ export default function Home() {
           <div className="flex gap-6 z-10">
             <button
               onClick={() => setCurrentView('playing')}
-              className="bg-gradient-to-r from-cyan-500 to-violet-600 text-white px-10 py-4 rounded-xl font-mono font-black text-sm tracking-widest hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all active:scale-95 border border-cyan-400/20"
+              className="bg-linear-to-r from-cyan-500 to-violet-600 text-white px-10 py-4 rounded-xl font-mono font-black text-sm tracking-widest hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all active:scale-95 border border-cyan-400/20"
             >
               INITIALIZE ASCENT
             </button>
