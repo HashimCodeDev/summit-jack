@@ -238,8 +238,8 @@ export class GameScene extends Scene {
                 // extract the Y coordinate depending on how BasePlatform is structured
                 const platformY = p.body ? p.body.position.y : p.y;
 
-                // Cull if it's 1500px below the player
-                if (platformY > this.player.y + 1500) {
+                // Cull if it's 2000px below the player
+                if (platformY > this.player.y + 2000) {
                     if (typeof p.destroy === 'function') {
                         p.destroy();
                     }
