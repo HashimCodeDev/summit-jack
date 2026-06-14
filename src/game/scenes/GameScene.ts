@@ -2,92 +2,70 @@
 
 import { Scene } from "phaser";
 import { Player } from "../entities/Player";
-import { LaunchSystem } from "../systems/LaunchSystem";
-import { GAME_CONSTANTS } from "../config/game-constants";
+import { BasePlatform } from "../terrain/BasePlatform";
+import { PivotEngine } from "../physics/PivotEngine";
 
 export class GameScene extends Scene {
     private player!: Player;
-    private launchSystem!: LaunchSystem;
+    private pivotEngine!: PivotEngine;
+    private platforms: BasePlatform[] = [];
 
-    // UI HUD Metrics Tracker Layer
     private heightText!: Phaser.GameObjects.Text;
-    private maxAltitudeText!: Phaser.GameObjects.Text;
-
-    private highestAltitudeReached: number = 0;
-    private groundReferenceY: number = 1500; // Arbitrary coordinate baseline for height measurements
+    private groundReferenceY: number = 1200;
 
     constructor() {
         super("GameScene");
     }
 
     create() {
-        console.log("Game Scene Loaded");
+        // 1. Expand world boundaries to support a massive diagonal right-and-up layout space
+        this.matter.world.setBounds(0, -100000, 20000, 100000 + this.groundReferenceY);
+        this.matter.world.setGravity(0, 1.4);
 
-        // 1. Extend Matter.js boundary sizes dynamically to allow vertical ascension paths safely
-        this.matter.world.setBounds(0, -100000, 2000, 100000 + this.groundReferenceY);
-        this.matter.world.setGravity(0, GAME_CONSTANTS.WORLD.GRAVITY_Y);
+        // Baseline structural surface properties
+        const standardProps = { friction: 0.9, restitution: 0.05 };
 
-        // Temporary developmental baseline platform structural anchor block
-        const floorPlatform = this.matter.add.rectangle(1000, this.groundReferenceY + 50, 2000, 100, {
-            isStatic: true,
-            label: "GroundPlatform"
-        });
+        // 2. Spawn point platform (Spans horizontally under the player so you don't fall at start)
+        this.platforms.push(
+            new BasePlatform(this, 300, this.groundReferenceY + 20, 800, 40, 0x111111, standardProps)
+        );
 
-        // 2. Instantiate Player character entity modules
-        this.player = new Player(this, 1000, this.groundReferenceY - 100);
+        // 3. Initialize player right above the starting ground floor
+        this.player = new Player(this, 200, this.groundReferenceY - 100);
+        this.pivotEngine = new PivotEngine(this, this.player);
 
-        // 3. Attach Input Handling Controller Systems
-        this.launchSystem = new LaunchSystem(this, this.player);
+        // 4. Construct a diagonal, step-like mountain layout climbing toward the top right
+        // Each ledge is positioned within the 180px physical reach of the jack
+        this.platforms.push(
+            new BasePlatform(this, 400, this.groundReferenceY - 120, 180, 30, 0x334455, standardProps)
+        );
+        this.platforms.push(
+            new BasePlatform(this, 600, this.groundReferenceY - 260, 180, 30, 0x334455, standardProps)
+        );
+        this.platforms.push(
+            new BasePlatform(this, 820, this.groundReferenceY - 400, 180, 30, 0x445566, standardProps)
+        );
+        this.platforms.push(
+            new BasePlatform(this, 1050, this.groundReferenceY - 550, 180, 30, 0x445566, standardProps)
+        );
 
-        // 4. Configure Camera systems to cleanly lock along high vertical axises
-        this.cameras.main.setBounds(0, -100000, 2000, 100000 + this.groundReferenceY);
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 100);
-        this.cameras.main.setZoom(1.0);
+        // Introducing a massive right-side cliff face obstacle to swing around
+        this.platforms.push(
+            new BasePlatform(this, 1350, this.groundReferenceY - 750, 300, 250, 0x553344, standardProps)
+        );
 
-        // 5. Initialize Minimalist High Performance Overlay Metrics Displays
-        this.initializeAltitudeHUD();
-    }
+        this.platforms.push(
+            new BasePlatform(this, 1600, this.groundReferenceY - 950, 200, 40, 0x664455, standardProps)
+        );
 
-    private initializeAltitudeHUD(): void {
+        // 5. Update camera tracking to follow both X and Y axis progression
+        this.cameras.main.setBounds(0, -100000, 20000, 100000 + this.groundReferenceY);
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -100, 150);
+
         this.heightText = this.add.text(20, 20, "Altitude: 0m", {
             fontSize: "24px",
             fontFamily: "monospace",
             color: "#ffffff"
-        }).setScrollFactor(0); // Freeze UI overlay text relative to dynamic viewports
-
-        this.maxAltitudeText = this.add.text(20, 50, "Max Altitude: 0m", {
-            fontSize: "18px",
-            fontFamily: "monospace",
-            color: "#00ffcc"
         }).setScrollFactor(0);
-    }
-
-    override update() {
-        // Continuous verification fallback logic loop routines
-        if (!this.player || !this.player.body) return;
-
-        // 1. Calculate Realtime Altitude Tracker values
-        // Note: As you ascend higher in standard 2D view spaces, the raw Y coordinate drops into deep negatives.
-        const calculatedAltitude = Math.max(0, Math.floor((this.groundReferenceY - this.player.y) / 10));
-        this.heightText.setText(`Altitude: ${calculatedAltitude}m`);
-
-        if (calculatedAltitude > this.highestAltitudeReached) {
-            this.highestAltitudeReached = calculatedAltitude;
-            this.maxAltitudeText.setText(`Max Altitude: ${this.highestAltitudeReached}m`);
-        }
-
-        // 2. Process Automation State Machines checking airborne velocities vs ground interactions
-        const currentVelocityY = this.player.body.velocity.y;
-
-        if (this.player.playerState === "LAUNCHED" && currentVelocityY > 0.5) {
-            // Once structural upward propulsion vector decays into downward vectors, flip into FALLING states
-            this.player.updateState("FALLING");
-        }
-
-        // Fail-safe reset criteria: if it settles perfectly to a stop on the ground platform, put back to IDLE
-        if (this.player.playerState === "FALLING" && Math.abs(currentVelocityY) < 0.05) {
-            this.player.updateState("IDLE");
-            this.player.freeze();
-        }
     }
 }
