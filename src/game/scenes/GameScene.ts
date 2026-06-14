@@ -157,28 +157,34 @@ export class GameScene extends Scene {
 
             // Find the absolute lowest platform still alive in the world (always index 0)
             if (this.platforms.length > 0) {
-                const lowestPlatform = this.platforms[0] as any;
-                const voidY = lowestPlatform.body ? lowestPlatform.body.position.y : lowestPlatform.y;
+                // Find the lowest platform, safely skipping any "ghost" undefined array slots
+                const lowestPlatform = this.platforms.find(
+                    p => p && p.active && p.body && p.body.position
+                );
 
-                // You ONLY die if you fall 300px past the lowest existing platform
-                if (this.player.y > voidY + 300) {
+                if (lowestPlatform && lowestPlatform.body && lowestPlatform.body.position) {
+                    const voidY = lowestPlatform.y ?? this.groundReferenceY;
+
+                    // You ONLY die if you fall 300px past the lowest existing platform
+                    if (voidY !== undefined && this.player.y > voidY + 300) {
+                        this.handlePlayerFailure();
+                        return;
+                    }
+                } else if (this.player.y > this.groundReferenceY + 400) {
+                    // Fallback for the very beginning of the game
                     this.handlePlayerFailure();
                     return;
                 }
-            } else if (this.player.y > this.groundReferenceY + 400) {
-                // Fallback for the very beginning of the game
-                this.handlePlayerFailure();
-                return;
-            }
 
-            // --- ENDLESS GENERATION & CULLING ---
-            // If the player gets within 1000px of the last generated platform, spawn a new one
-            if (this.player.y - 1000 < this.lastGeneratedY) {
-                this.generateNextPlatform();
-            }
+                // --- ENDLESS GENERATION & CULLING ---
+                // If the player gets within 1000px of the last generated platform, spawn a new one
+                if (this.player.y - 1000 < this.lastGeneratedY) {
+                    this.generateNextPlatform();
+                }
 
-            // Clean up old platforms far below the player to save mobile memory
-            this.cleanupOldPlatforms();
+                // Clean up old platforms far below the player to save mobile memory
+                this.cleanupOldPlatforms();
+            }
         }
     }
 
