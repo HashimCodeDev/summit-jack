@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import GameCanvas from "@/src/components/GameCanvas";
 import { authClient } from "@/src/lib/auth-client";
 
-// Explicit State Machine Definitions
-type AppState = 'menu' | 'intro' | 'playing' | 'leaderboard';
+type AppState = 'intro' | 'menu' | 'playing' | 'leaderboard';
 
 interface LeaderboardPlayer {
   _id: string;
@@ -14,6 +13,7 @@ interface LeaderboardPlayer {
   maxAltitude: number;
 }
 
+// --- Memoized Leaderboard Row Item ---
 const LeaderboardEntry = memo(({ player, index, isCurrentUser }: { player: LeaderboardPlayer, index: number, isCurrentUser: boolean }) => {
   const rankColor = index === 0 ? 'text-yellow-400' : index === 1 ? 'text-slate-300' : index === 2 ? 'text-amber-600' : 'text-slate-500';
 
@@ -29,9 +29,9 @@ const LeaderboardEntry = memo(({ player, index, isCurrentUser }: { player: Leade
             {player.name.charAt(0).toUpperCase()}
           </div>
         )}
-        <span className="font-bold text-lg truncate max-w-37.5">{player.name}</span>
+        <span className="font-bold text-lg truncate max-w-[150px]">{player.name}</span>
       </div>
-      <span className="font-mono text-transparent bg-clip-text bg-linear-to-r from-cyan-400 to-violet-400 font-bold text-xl">
+      <span className="font-mono text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-400 font-bold text-xl">
         {player.maxAltitude}m
       </span>
     </div>
@@ -40,17 +40,33 @@ const LeaderboardEntry = memo(({ player, index, isCurrentUser }: { player: Leade
 LeaderboardEntry.displayName = 'LeaderboardEntry';
 
 
-// --- SUB-COMPONENT: Hardware Accelerated Intro Video Loop ---
+// --- Intro Video Component with Browser Audio Bypass ---
 function IntroVideo({ onComplete }: { onComplete: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  // Trigger video playback immediately upon interaction
+  const handleStartIntro = () => {
+    setHasInteracted(true);
+
+    // Tiny timeout ensures the DOM has updated and audio context is unlocked by the click
+    setTimeout(() => {
+      const video = videoRef.current;
+      if (video) {
+        video.muted = false; // 🔊 UNMUTED! Allowed because it happens inside a click handler
+        video.play().catch((err) => {
+          console.error("Audio playback execution blocked:", err);
+          // Fallback if browser still acts up
+          video.muted = true;
+          video.play();
+        });
+      }
+    }, 50);
+  };
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    if (!hasInteracted) return;
 
-    video.play().catch(() => console.warn("Autoplay intercepted. Waiting for bypass click."));
-
-    // Polyfill handling multi-input skip mechanics safely
     const handleSkip = (e: KeyboardEvent) => {
       if (e.key === " " || e.key === "Escape") {
         e.preventDefault();
@@ -60,8 +76,24 @@ function IntroVideo({ onComplete }: { onComplete: () => void }) {
 
     window.addEventListener("keydown", handleSkip);
     return () => window.removeEventListener("keydown", handleSkip);
-  }, [onComplete]);
+  }, [hasInteracted, onComplete]);
 
+  // Gate 1: Prompt interaction to satisfy browser security policies
+  if (!hasInteracted) {
+    return (
+      <div
+        onClick={handleStartIntro}
+        className="fixed inset-0 w-screen h-screen bg-slate-950 flex flex-col items-center justify-center z-55 cursor-pointer select-none overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(6,182,212,0.05)_0%,transparent_60%)] animate-pulse" />
+        <div className="relative font-mono text-sm tracking-[0.4em] text-cyan-400 uppercase animate-[pulse_2s_infinite] text-center px-4">
+          —CLICK ANYWHERE TO INITIALIZE—
+        </div>
+      </div>
+    );
+  }
+
+  // Gate 2: True unmuted cinematic streaming
   return (
     <div className="fixed inset-0 w-screen h-screen bg-black z-50 overflow-hidden" onClick={onComplete}>
       <video
@@ -76,21 +108,20 @@ function IntroVideo({ onComplete }: { onComplete: () => void }) {
         onClick={(e) => { e.stopPropagation(); onComplete(); }}
         className="absolute bottom-8 right-8 bg-black/50 hover:bg-violet-600/40 text-slate-300 hover:text-cyan-400 font-mono text-xs tracking-widest uppercase px-5 py-3 rounded-md border border-slate-800 transition-all backdrop-blur-md"
       >
-        Skip Sequence [SPACE]
+        Skip Intro [SPACE]
       </button>
     </div>
   );
 }
 
 
-// --- MAIN ROUTER COMPONENT ---
+// --- Main Home Space ---
 export default function Home() {
   const { data: session, isPending } = authClient.useSession();
-  const [currentView, setCurrentView] = useState<AppState>('menu');
+  const [currentView, setCurrentView] = useState<AppState>('intro');
   const [leaders, setLeaders] = useState<LeaderboardPlayer[]>([]);
   const [isLoadingLeaders, setIsLoadingLeaders] = useState(false);
 
-  // Auto-fetch data stream on state shifting hooks
   useEffect(() => {
     if (currentView === 'leaderboard') {
       const fetchLeaderboard = async () => {
@@ -117,7 +148,6 @@ export default function Home() {
     await authClient.signOut({ fetchOptions: { onSuccess: () => window.location.reload() } });
   };
 
-  // --- STATE 1: REHYDRATION LOADING ---
   if (isPending) {
     return (
       <main className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center gap-2">
@@ -127,7 +157,6 @@ export default function Home() {
     );
   }
 
-  // --- STATE 2: UNAUTHENTICATED LAUNCHER GATE ---
   if (!session) {
     return (
       <main className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
@@ -144,11 +173,9 @@ export default function Home() {
     );
   }
 
-  // --- STATE 3: AUTHENTICATED REALITY MATRIX ---
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-radial-dark text-white select-none">
 
-      {/* Global Interface Override Control */}
       {currentView !== 'playing' && currentView !== 'intro' && (
         <button
           onClick={handleLogout}
@@ -158,19 +185,23 @@ export default function Home() {
         </button>
       )}
 
-      {/* VIEW A: MULTIVERSE PREMIUM MAIN MENU LAUNCHER */}
+      {/* VIEW A: LOGGED IN INITIAL CONDITION -> SYSTEM AUDIO READY GATE AND INTRO CONTAINER */}
+      {currentView === 'intro' && (
+        <IntroVideo onComplete={() => setCurrentView('menu')} />
+      )}
+
+      {/* VIEW B: MAIN LAUNCHER INTERFACE */}
       {currentView === 'menu' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/40">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(6,182,212,0.06)_0%,transparent_50%)] pointer-events-none" />
 
-          {/* Logo Center Ring Layout */}
           <div className="relative w-44 h-44 border border-cyan-500/20 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(6,182,212,0.05)] group">
             <div className="absolute inset-2 border border-dashed border-violet-500/20 rounded-full animate-[spin_40s_linear_infinite]" />
             <span className="text-5xl font-black text-slate-300 tracking-tighter">Ω</span>
           </div>
 
           <h1 className="text-6xl md:text-7xl font-black text-white mb-1 tracking-tighter uppercase">
-            Tether<span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 via-violet-400 to-fuchsia-500">verse</span>
+            Tether<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-violet-400 to-fuchsia-500">verse</span>
           </h1>
           <p className="text-green-400/80 mb-12 text-xs font-mono tracking-[0.25em] uppercase">
             Welcome back, client::{session.user.name.split(' ')[0]}
@@ -178,8 +209,8 @@ export default function Home() {
 
           <div className="flex gap-6 z-10">
             <button
-              onClick={() => setCurrentView('intro')}
-              className="bg-linear-to-r from-cyan-500 to-violet-600 text-white px-10 py-4 rounded-xl font-mono font-black text-sm tracking-widest hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all active:scale-95 border border-cyan-400/20"
+              onClick={() => setCurrentView('playing')}
+              className="bg-gradient-to-r from-cyan-500 to-violet-600 text-white px-10 py-4 rounded-xl font-mono font-black text-sm tracking-widest hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all active:scale-95 border border-cyan-400/20"
             >
               INITIALIZE ASCENT
             </button>
@@ -193,7 +224,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* VIEW B: HIGH ARCHITECTURE LEADERBOARD PANEL */}
+      {/* VIEW C: GLOBAL RANKINGS PANEL */}
       {currentView === 'leaderboard' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/80 backdrop-blur-md p-4">
           <div className="relative w-full max-w-lg bg-slate-900/40 border border-violet-500/20 rounded-2xl flex flex-col shadow-2xl overflow-hidden h-[75vh]">
@@ -238,12 +269,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* VIEW C: RUNTIME FILM STRIP SCENE INTERCEPTION */}
-      {currentView === 'intro' && (
-        <IntroVideo onComplete={() => setCurrentView('playing')} />
-      )}
-
-      {/* VIEW D: DECOUPLED GAME ENVIRONMENT LOOP */}
+      {/* VIEW D: RUNTIME CORE ENGINE CONTAINER */}
       {currentView === 'playing' && (
         <div className="w-full h-full relative z-30">
           <button
@@ -252,8 +278,6 @@ export default function Home() {
           >
             ← ABORT ASCENT
           </button>
-
-          {/* Engine mounting node scales securely right here */}
           <GameCanvas />
         </div>
       )}
