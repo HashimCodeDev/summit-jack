@@ -1,33 +1,57 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Phaser from "phaser";
-import { gameConfig } from "./config/phaser-config";
+
+interface GameProps {
+  // Add any component props here if needed
+}
 
 export default function Game() {
-  const gameRef = useRef<Phaser.Game | null>(null);
+  const gameRef = useRef<any>(null); // Using any temporarily as Phaser is dynamically loaded
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!gameRef.current) {
-      gameRef.current = new Phaser.Game(gameConfig);
-    }
+    // 2. Ensure the container div is physically loaded in the DOM tree before running
+    if (!containerRef.current) return;
 
-    useEffect(() => {
-      console.log(document.getElementById("game-container"));
+    // 3. Keep a flag to prevent double-initialization in React Strict Mode
+    let isDestroyed = false;
+
+    async function initPhaser() {
+      // 4. Dynamically import Phaser so it ONLY loads on the client browser
+      const Phaser = (await import("phaser")).default;
+      const { gameConfig } = await import("./config/phaser-config");
+
+      // Check if the component unmounted while downloading the library
+      if (isDestroyed) return;
 
       if (!gameRef.current) {
-        gameRef.current = new Phaser.Game(gameConfig);
+        gameRef.current = new Phaser.Game({
+          ...gameConfig,
+          parent: containerRef.current, // Pass the direct node reference safely
+        });
       }
+    }
 
-      return () => {
-        gameRef.current?.destroy(true);
-      };
-    }, []);
+    initPhaser();
 
     return () => {
-      gameRef.current?.destroy(true);
+      isDestroyed = true;
+      if (gameRef.current) {
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
     };
   }, []);
 
-  return <div id="game-container" />;
+  return (
+    <div
+      ref={containerRef} // This guarantees Phaser can target the canvas without racing the DOM
+      id="game-container"
+      style={{
+        width: "100vw",
+        height: "100vh",
+      }}
+    />
+  );
 }
