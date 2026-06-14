@@ -115,11 +115,11 @@ export class PivotEngine {
         this.debugGraphics.clear();
         const pointer = this.scene.input.activePointer;
 
-        // 1. Draw your max reach circle
-        this.debugGraphics.lineStyle(2, 0xffffff, 0.2);
-        this.debugGraphics.strokeCircle(this.player.x, this.player.y, this.jackLength);
+        // Draw your max reach circle
+        // this.debugGraphics.lineStyle(2, 0xffffff, 0.2);
+        // this.debugGraphics.strokeCircle(this.player.x, this.player.y, this.jackLength);
 
-        // 2. The Yellow Aiming Laser (Allows drag-to-scan without hopping)
+        // The Yellow Aiming Laser (Allows drag-to-scan without hopping)
         if (pointer.isDown && !this.isHooked) {
             this.attemptAnchor(pointer, false); // Scans for a wall hook while dragging
 
@@ -134,10 +134,10 @@ export class PivotEngine {
             this.debugGraphics.lineBetween(this.player.x, this.player.y, previewX, previewY);
         }
 
-        // 3. Early return if not hooked
+        // Early return if not hooked
         if (!this.isHooked || !this.pivotConstraint) return;
 
-        // 4. Draw the actual swinging rope and apply physics
+        // Draw the actual swinging rope and apply physics
         this.debugGraphics.lineStyle(5, 0x00ffcc, 1);
         this.debugGraphics.lineBetween(this.player.x, this.player.y, this.anchorPoint.x, this.anchorPoint.y);
         this.debugGraphics.fillStyle(0xff3333, 1);
