@@ -1,4 +1,4 @@
-import { Scene } from "phaser";
+import Phaser, { Scene } from "phaser";
 import { Player } from "../entities/Player";
 import { BasePlatform } from "../terrain/BasePlatform";
 import { PivotEngine } from "../physics/PivotEngine";
@@ -13,6 +13,10 @@ export class GameScene extends Scene {
 
     private groundReferenceY: number = 1200;
     private static maxAltitudeMeters: number = 0;
+
+    private lastGeneratedX: number = 0;
+    private lastGeneratedY: number = 0;
+    private runLowestY: number = 0; // Tracks the highest point reached THIS run to move the death-zone up
 
     constructor() {
         super("GameScene");
@@ -106,6 +110,11 @@ export class GameScene extends Scene {
             fontFamily: "monospace",
             color: "#FF0000"
         }).setScrollFactor(0);;
+
+        // Initialize the last generated platform coordinates to the position of the last hardcoded platform
+        this.lastGeneratedX = 1550;
+        this.lastGeneratedY = this.groundReferenceY - 650;
+        this.runLowestY = this.groundReferenceY;
     }
 
     update(time: number, delta: number) {
@@ -139,6 +148,27 @@ export class GameScene extends Scene {
                     this.maxHeightText.setText(`Max Height: ${GameScene.maxAltitudeMeters}m`);
                 }
             }
+
+            // --- DYNAMIC FAIL CHECK ---
+            // Track the highest point reached this specific run (Y decreases as you go up)
+            if (this.player.y < this.runLowestY) {
+                this.runLowestY = this.player.y;
+            }
+
+            // If you fall 800px below your highest achieved point, you die
+            if (this.player.y > this.runLowestY + 800) {
+                this.handlePlayerFailure();
+                return;
+            }
+
+            // --- ENDLESS GENERATION & CULLING ---
+            // If the player gets within 1000px of the last generated platform, spawn a new one
+            if (this.player.y - 1000 < this.lastGeneratedY) {
+                this.generateNextPlatform();
+            }
+
+            // Clean up old platforms far below the player to save mobile memory
+            this.cleanupOldPlatforms();
         }
     }
 
@@ -151,5 +181,64 @@ export class GameScene extends Scene {
 
         // Trigger a native scene reload framework sequence
         this.scene.restart();
+    }
+
+    private generateNextPlatform() {
+        const maxJackReach = 280; // Slightly under your 300px max to guarantee it is reachable
+
+        // Randomize the vertical jump distance (climbing between 80px and 180px higher)
+        const deltaY = Phaser.Math.Between(-180, -80);
+
+        // Pythagorean Theorem to find the maximum safe horizontal distance
+        const maxDeltaX = Math.sqrt(Math.pow(maxJackReach, 2) - Math.pow(deltaY, 2));
+        const deltaX = Phaser.Math.Between(-maxDeltaX, maxDeltaX);
+
+        let nextX = this.lastGeneratedX + deltaX;
+        let nextY = this.lastGeneratedY + deltaY;
+
+        // Clamp X so the mountain doesn't drift infinitely left or right off into the void
+        nextX = Phaser.Math.Clamp(nextX, 0, 3000);
+
+        // Randomize the visual shape
+        const width = Phaser.Math.Between(80, 200);
+        const height = Phaser.Math.Between(30, 60);
+
+        // Generate a random muted mountain color (grays, dark blues, slate)
+        const color = Phaser.Display.Color.RandomRGB(50, 150).color;
+
+        const p = new BasePlatform(this, nextX, nextY, width, height, color, { friction: 0.9, restitution: 0.05 });
+        this.platforms.push(p);
+
+        // Update the trackers for the next loop
+        this.lastGeneratedX = nextX;
+        this.lastGeneratedY = nextY;
+    }
+
+    private cleanupOldPlatforms() {
+        for (let i = this.platforms.length - 1; i >= 0; i--) {
+            const p = this.platforms[i] as any;
+
+            //If the object or its physics body is already gone, just drop it from the array
+            if (!p || (!p.body && !p.gameObject?.body)) {
+                this.platforms.splice(i, 1);
+                continue;
+            }
+
+            try {
+                // extract the Y coordinate depending on how BasePlatform is structured
+                const platformY = p.body ? p.body.position.y : p.y;
+
+                // Cull if it's 1500px below the player
+                if (platformY > this.player.y + 1500) {
+                    if (typeof p.destroy === 'function') {
+                        p.destroy();
+                    }
+                    this.platforms.splice(i, 1);
+                }
+            } catch (error) {
+                // If anything goes wrong reading the position, force remove it to prevent looping crashes
+                this.platforms.splice(i, 1);
+            }
+        }
     }
 }
