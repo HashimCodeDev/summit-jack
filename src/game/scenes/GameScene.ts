@@ -76,9 +76,22 @@ export class GameScene extends Scene {
     }
 
     update(time: number, delta: number) {
-        // This forces the physics engine to calculate and draw the graphics every single frame
+
+        // Update the pivot engine routines
         if (this.pivotEngine) {
             this.pivotEngine.updateEngineRoutines();
+        }
+
+        //Update the Altimeter
+        if (this.player && this.heightText) {
+            // Calculate distance from the ground (Y decreases as you go up)
+            const pixelHeight = this.groundReferenceY - this.player.y - 20;
+
+            // Convert pixels to meters (let's say 10 pixels = 1 meter)
+            // Math.max(0, ...) ensures it doesn't show negative numbers if you bounce hard on the floor
+            const altitudeMeters = Math.max(0, Math.floor(pixelHeight / 10));
+
+            this.heightText.setText(`Altitude: ${altitudeMeters}m`);
         }
     }
 }
