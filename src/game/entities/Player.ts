@@ -18,7 +18,7 @@ export class Player extends Phaser.GameObjects.Container {
         // Visual representation for development placeholder
         // Using a built-in Geometric Arc avoids generating premature draw calls for missing textures
         this.spriteCircle = scene.add.arc(0, 0, this.coreBodyRadius, 0, 360, false, 0xffffff);
-        this.spriteCircle.setStrokeStyle(3, 0x00ffcc); // Neon accent highlight
+        //this.spriteCircle.setStrokeStyle(3, 0x00ffcc); // Neon accent highlight
         this.add(this.spriteCircle);
 
         // Add container to the scene
