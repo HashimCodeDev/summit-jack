@@ -12,7 +12,7 @@ export class GameScene extends Scene {
     private maxHeightText!: Phaser.GameObjects.Text;
 
     private groundReferenceY: number = 1200;
-    private static maxAltitudeMeters: number = 0;
+    private maxAltitudeMeters: number = 0;
 
     private lastGeneratedX: number = 0;
     private lastGeneratedY: number = 0;
@@ -23,19 +23,55 @@ export class GameScene extends Scene {
     }
 
     init() {
+        // Keep the local storage check as a fast-loading fallback!
+        // It prevents the score from showing '0m' for half a second while the database loads.
         try {
             const saved = localStorage.getItem('maxAltitude');
             if (saved) {
                 const parsed = parseInt(saved, 10);
-                // Only overwrite if the saved score is a valid number AND higher
-                if (!isNaN(parsed) && parsed > GameScene.maxAltitudeMeters) {
-                    GameScene.maxAltitudeMeters = parsed;
+                if (!isNaN(parsed) && parsed > this.maxAltitudeMeters) {
+                    this.maxAltitudeMeters = parsed;
                 }
             }
         } catch (e) {
-            // Silently ignore if the browser is blocking localStorage
+            // Silently ignore
+        }
+
+        // 🚀 Fire off the background fetch to sync with the cloud
+        this.loadDatabaseHighScore();
+    }
+
+    // Fetch the high score from the database and update the static variable
+    private async loadDatabaseHighScore() {
+        try {
+            const response = await fetch('/api/score');
+
+            // If they aren't logged in, the API returns 401 Unauthorized. Just abort silently.
+            if (!response.ok) return;
+
+            const data = await response.json();
+
+            // If the cloud score is higher than what the local game thinks...
+            if (data.success && data.maxAltitude > this.maxAltitudeMeters) {
+
+                // 1. Update the static variable
+                this.maxAltitudeMeters = data.maxAltitude;
+
+                // 2. Sync it back to local storage so the next page refresh is instant
+                localStorage.setItem('maxAltitude', data.maxAltitude.toString());
+
+                // 3. Visually update the UI text if it has been created already
+                if (this.maxHeightText) {
+                    this.maxHeightText.setText(`Max Height: ${this.maxAltitudeMeters}m`);
+                }
+
+                console.log(`☁️ Cloud Sync Complete: Loaded ${data.maxAltitude}m`);
+            }
+        } catch (error) {
+            console.error("Failed to sync high score from cloud", error);
         }
     }
+
     create() {
         this.matter.world.setBounds(0, -100000, 20000, 100000 + this.groundReferenceY);
         this.matter.world.setGravity(0, 1.4);
@@ -110,7 +146,7 @@ export class GameScene extends Scene {
         }).setScrollFactor(0);
 
         // Max Height Tracker
-        this.maxHeightText = this.add.text(20, 50, `Max Height: ${GameScene.maxAltitudeMeters}m`, {
+        this.maxHeightText = this.add.text(20, 50, `Max Height: ${this.maxAltitudeMeters}m`, {
             fontSize: "18px",
             fontFamily: "monospace",
             color: "#FF0000"
@@ -144,13 +180,13 @@ export class GameScene extends Scene {
 
                 this.heightText.setText(`Altitude: ${altitudeMeters}m`);
 
-                if (altitudeMeters > GameScene.maxAltitudeMeters) {
-                    GameScene.maxAltitudeMeters = altitudeMeters;
+                if (altitudeMeters > this.maxAltitudeMeters) {
+                    this.maxAltitudeMeters = altitudeMeters;
 
                     // Bulletproof persistent save
-                    localStorage.setItem('maxAltitude', GameScene.maxAltitudeMeters.toString());
+                    localStorage.setItem('maxAltitude', this.maxAltitudeMeters.toString());
 
-                    this.maxHeightText.setText(`Max Height: ${GameScene.maxAltitudeMeters}m`);
+                    this.maxHeightText.setText(`Max Height: ${this.maxAltitudeMeters}m`);
                 }
             }
 
@@ -194,16 +230,20 @@ export class GameScene extends Scene {
     }
 
     private handlePlayerFailure() {
-        // Destroy the previous engine runtime references to safely unbind old event listeners 
+        // 1. Capture and save the high score immediately before anything is destroyed
+        if (this.maxAltitudeMeters) {
+            this.saveHighScore(this.maxAltitudeMeters);
+        }
+
+        // 2. Destroy the previous engine runtime references to safely unbind old event listeners 
         // and eliminate pointer registration leaks
         if (this.pivotEngine) {
             this.pivotEngine.destroy();
         }
 
-        // Trigger a native scene reload framework sequence
+        // 3. Trigger a native scene reload framework sequence
         this.scene.restart();
     }
-
     private generateNextPlatform() {
         const maxJackReach = 280; // Slightly under your 300px max to guarantee it is reachable
 
@@ -260,6 +300,29 @@ export class GameScene extends Scene {
                 // If anything goes wrong reading the position, force remove it to prevent looping crashes
                 this.platforms.splice(i, 1);
             }
+        }
+    }
+
+    // Saving high scores to the database (called on game over)
+    private async saveHighScore(finalAltitude: number) {
+        try {
+            const response = await fetch('/api/score', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ score: Math.floor(finalAltitude) })
+            });
+
+            const data = await response.json();
+
+            if (data.updated) {
+                console.log(`🎉 New Personal Best! Saved ${data.newRecord}m to database.`);
+                // You could trigger a Phaser UI text here saying "NEW RECORD!"
+            }
+
+        } catch (error) {
+            console.error("Could not reach the database to save score.", error);
         }
     }
 }
