@@ -9,7 +9,10 @@ export class GameScene extends Scene {
     private platforms: BasePlatform[] = [];
 
     private heightText!: Phaser.GameObjects.Text;
+    private maxHeightText!: Phaser.GameObjects.Text;
+
     private groundReferenceY: number = 1200;
+    private maxAltitudeMeters: number = 0;
 
     constructor() {
         super("GameScene");
@@ -73,6 +76,13 @@ export class GameScene extends Scene {
             fontFamily: "monospace",
             color: "#ffffff"
         }).setScrollFactor(0);
+
+        // Max Height Tracker
+        this.maxHeightText = this.add.text(20, 50, "Max Height: 0m", {
+            fontSize: "18px",
+            fontFamily: "monospace",
+            color: "#FF0000"
+        }).setScrollFactor(0);
     }
 
     update(time: number, delta: number) {
@@ -92,6 +102,11 @@ export class GameScene extends Scene {
             const altitudeMeters = Math.max(0, Math.floor(pixelHeight / 10));
 
             this.heightText.setText(`Altitude: ${altitudeMeters}m`);
+
+            if (altitudeMeters > this.maxAltitudeMeters) {
+                this.maxAltitudeMeters = altitudeMeters;
+                this.maxHeightText.setText(`Max Height: ${this.maxAltitudeMeters}m`);
+            }
         }
     }
 }
