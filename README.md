@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&height=220&color=0:0F172A,100:2563EB&text=Summit%20Jack&fontColor=FFFFFF&fontSize=60&animation=fadeIn" />
+</p>
 
-## Getting Started
+<p align="center">
+  A physics-driven platformer where momentum is the mechanic.
+</p>
 
-First, run the development server:
+<p align="center">
+  <img src="https://img.shields.io/badge/Phaser-3-blue?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Matter.js-Physics-black?style=for-the-badge">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge">
+</p>
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## About
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Summit Jack** is a 2D platforming game built around momentum, precision, and player mastery.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Using a custom pivot mechanic powered by Matter.js physics, players swing, launch, and traverse challenging terrain through skillful movement rather than scripted actions. Every jump, release, and launch carries consequences, rewarding precision and experimentation.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Gameplay
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Physics-based movement
+- Pivot and grappling mechanics
+- Momentum-driven traversal
+- Precision platforming
+- Dynamic launch system
+- Skill-focused progression
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Philosophy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> Movement should feel earned.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Summit Jack is designed around player control and mechanical expression. The environment is not simply navigated; it is mastered through timing, trajectory management, and an understanding of momentum.
+
+Every successful traversal is the result of player skill interacting with a simulated physical world.
+
+---
+
+## Built With
+
+- Phaser 3
+- Matter.js
+- TypeScript
+- React
+- Next.js
+
+---
+
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&section=footer&height=120&color=0:0F172A,100:2563EB" />
+</p>
