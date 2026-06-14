@@ -14,6 +14,8 @@
     "framer-motion": "^12.40.0",
     "howler": "^2.2.4",
     "matter-js": "^0.20.0",
+    "mongodb": "^7.3.0",
+    "mongoose": "^9.7.0",
     "next": "16.2.9",
     "phaser": "^4.1.0",
     "react": "19.2.4",
@@ -23,15 +25,15 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.3.1",
     "@types/matter-js": "^0.20.2",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
     "eslint-config-next": "16.2.9",
     "prisma": "^7.8.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "tailwindcss": "^4.3.1",
+    "typescript": "^5.9.3"
   }
 }
