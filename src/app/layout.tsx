@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Summit Jack",
   description: "A 2D platformer game built with React and TypeScript.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
