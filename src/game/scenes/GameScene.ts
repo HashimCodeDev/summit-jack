@@ -42,7 +42,7 @@ export class GameScene extends Scene {
 
         const standardProps = { friction: 0.9, restitution: 0.05 };
 
-        // 1. THE SPAWN PEDESTAL: Shrunk down to a tiny block so you can easily swing off the edge
+        // THE SPAWN PEDESTAL: Shrunk down to a tiny block so you can easily swing off the edge
         this.platforms.push(
             new BasePlatform(this, 200, this.groundReferenceY + 20, 80, 40, 0x228B22, standardProps)
         );
@@ -51,12 +51,12 @@ export class GameScene extends Scene {
         this.player = new Player(this, 200, this.groundReferenceY - 50);
         this.pivotEngine = new PivotEngine(this, this.player);
 
-        // 2. THE TUTORIAL ANCHOR: Placed at a perfect diagonal angle for the first swing
+        // THE TUTORIAL ANCHOR: Placed at a perfect diagonal angle for the first swing
         this.platforms.push(
             new BasePlatform(this, 450, this.groundReferenceY - 150, 120, 40, 0x334455, standardProps)
         );
 
-        // 3. IN-WORLD TUTORIAL TEXT: Guides the player's eyes and actions perfectly
+        // IN-WORLD TUTORIAL TEXT: Guides the player's eyes and actions perfectly
         this.add.text(250, this.groundReferenceY - 230, "1. Tap & HOLD here to Hook", {
             fontSize: "24px",
             fontFamily: "monospace",
@@ -82,7 +82,7 @@ export class GameScene extends Scene {
             strokeThickness: 3
         });
 
-        // 4. THE ASCENT: Spacing out the rest of the mountain to catch your launch
+        // Spacing out the rest of the mountain to catch your launch
         this.platforms.push(
             new BasePlatform(this, 800, this.groundReferenceY - 300, 150, 30, 0x445566, standardProps)
         );
@@ -93,9 +93,14 @@ export class GameScene extends Scene {
             new BasePlatform(this, 1550, this.groundReferenceY - 650, 200, 150, 0x553344, standardProps)
         );
 
-        // Camera setup
-        this.cameras.main.setBounds(0, -100000, 20000, 100000 + this.groundReferenceY);
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -100, 150);
+        // --- CAMERA SETUP ---
+        // Tell the camera to lock onto the player
+        // The 'true' enables smooth sub-pixel rendering, and the 0.1 values add a nice elastic lerp (delay)
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+        // Shift the camera focus 200 pixels DOWN
+        // This pushes the player toward the bottom third of the screen so you can see what you are jumping to!
+        this.cameras.main.setFollowOffset(0, 200);
 
         // Static UI Height Tracker
         this.heightText = this.add.text(20, 20, "Altitude: 0m", {
